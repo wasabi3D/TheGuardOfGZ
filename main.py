@@ -1,12 +1,14 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands as dcmd
+import botcmd
+import servstats
 import sys
 
 
 def main():
     token = sys.argv[1]
     intents = discord.Intents.all()
-    bot = commands.Bot(command_prefix="/", intents=intents)
+    bot = dcmd.Bot(command_prefix="/", intents=intents)
     guild_gz = discord.Object(id=687998122777116707)  # Gaming Zone Guild Object
 
     @bot.event
@@ -18,15 +20,10 @@ def main():
     async def on_message(message: discord.Message):
         if message.author == bot.user:
             return
+        servstats.onMessage(message)
         await bot.process_commands(message)
 
-    @bot.tree.command(name="ping", guild=guild_gz)
-    async def _ping(cxt: discord.Interaction):
-        await cxt.response.send_message("Pong!")
-
-    @bot.tree.command(name="add", guild=guild_gz)
-    async def _add(cxt: discord.Interaction, a: int, b: int):
-        await cxt.response.send_message(f"{a}+{b}={a + b}")
+    botcmd.registerCommands(bot, guild_gz)
 
     bot.run(token)
 
