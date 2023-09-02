@@ -38,6 +38,8 @@ last_saved = time.time()
 empty = {StatType.MSGNUM: 0, StatType.VOCALTIME: 0}
 # 1st key: user id, 2nd key: messages or vocaltime
 current_stats: dict[int, dict[StatType, int]] = {}
+# int: user id, int: time of conection
+connected_on_vc: dict[int, float] = {}
 current_week_id = getCurrentWeekID()
 
 target_file_path = getPath(current_week_id)
@@ -56,10 +58,27 @@ def checkWeekID():
     return
 
 
+def onReady(bot, guild_id: int):
+    guild = bot.get_guild(guild_id)
+    for member in guild.members:
+        if member.voice is None: continue
+        if (tmp := member.voice.channel) is not None: 
+            if tmp in guild.channels:
+                connected_on_vc[member.id] = time.time() 
+
+
 def save(force=False):
     global last_saved
     if time.time() - last_saved < SAVE_MIN_INTERVAL or force:
         return
+    
+    if force:
+        for user_id in connected_on_vc:
+            if user_id not in current_stats:
+                current_stats[user_id] = empty.copy()
+            curtime = time.time()
+            current_stats[user_id][StatType.VOCALTIME] += curtime - connected_on_vc[user_id]
+            connected_on_vc[user_id] = curtime
 
     with open(target_file_path, "wb") as f:
         pickle.dump(current_stats, f)
@@ -74,6 +93,18 @@ def onMessage(message: discord.Message):
         current_stats[user_id] = empty.copy()
     checkWeekID()
     current_stats[user_id][StatType.MSGNUM] += 1
+    save()
+    return
+
+
+def onVoiceStateChange(member: discord.member, before: discord.VoiceState, after: discord.VoiceState):
+    curtime = time.time()
+    if before.channel is None and after.channel is not None:
+        connected_on_vc[member.id] = curtime
+    elif before.channel is not None and after.channel is None:
+        if member.id not in current_stats:
+            current_stats[member.id] = empty.copy()
+        current_stats[member.id][StatType.VOCALTIME] += curtime - connected_on_vc.pop(member.id)
     save()
     return
 
